@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Fallout 2 Community Edition! This
 
 - [Getting Started](#getting-started)
 - [Building the Project](#building-the-project)
-  - [Windows](#windows)
+  - [Windows](#windows)`
   - [Linux](#linux)
   - [macOS](#macos)
   - [iOS](#ios)
