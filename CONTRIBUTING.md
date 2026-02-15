@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Fallout 2 Community Edition! This
 
 - [Getting Started](#getting-started)
 - [Building the Project](#building-the-project)
-  - [Windows](#windows)`
+   - [Windows](#windows)
   - [Linux](#linux)
   - [macOS](#macos)
   - [iOS](#ios)
@@ -54,6 +54,8 @@ The project uses CMake as its build system with platform-specific presets define
 1. **Open a Command Prompt or PowerShell** in the project root directory.
 
 2. **Configure the build** (choose x86 or x64):
+   > **Note**: This step is required to generate the build directory. If skipped, the build command will fail with an error like `Error: ... is not a directory`.
+
    ```cmd
    # For 32-bit (x86)
    cmake --preset windows-x86
@@ -71,11 +73,30 @@ The project uses CMake as its build system with platform-specific presets define
    cmake --build --preset windows-x64-release
    ```
 
-4. **Find the executable** in:
+   For day-to-day work, you can use the helper script in repo root:
+   ```cmd
+   build_windows.bat
+   ```
+
+   It configures once (or when needed), builds Release, and prints elapsed build time.
+
+4. **Optional: force reconfigure** (if you changed CMake files, dependencies, or presets):
+   ```cmd
+   build_windows.bat --reconfigure
+   ```
+
+5. **Find the executable** in:
    - Debug: `out/build/windows-x64/Debug/fallout2-ce.exe`
    - Release: `out/build/windows-x64/Release/fallout2-ce.exe`
 
-5. **Copy the executable** to your Fallout 2 installation directory to run it.
+6. **Copy the executable** to your Fallout 2 installation directory to run it.
+
+#### Windows Build Performance Tips
+
+- Prefer incremental builds: avoid re-running configure unless needed.
+- Keep using the same build directory (`out/build/windows-x64`) to reuse compiled objects.
+- Use release preset for tester binaries (`windows-x64-release`) and debug preset only when debugging.
+- On this setup, explicit `--parallel` did not beat default MSBuild scheduling, so fastest wins are from incremental builds and avoiding unnecessary clean builds.
 
 ### Linux
 
