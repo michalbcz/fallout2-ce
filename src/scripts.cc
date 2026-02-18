@@ -1,5 +1,7 @@
 #include "scripts.h"
 
+#include "js_integration.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +53,7 @@ namespace fallout {
 typedef struct ScriptsListEntry {
     char name[16];
     int local_vars_num;
+    bool isJs;
 } ScriptsListEntry;
 
 typedef struct ScriptListExtent {
@@ -1271,6 +1274,28 @@ int scriptExecProc(int sid, int proc)
 
     script->scriptOverrides = 0;
 
+    if ((script->flags & SCRIPT_FLAG_JS) == 0) {
+        if (script->index != -1 && gScriptsListEntries[script->index & 0xFFFFFF].isJs) {
+            script->flags |= SCRIPT_FLAG_JS;
+        }
+    }
+
+    if (script->flags & SCRIPT_FLAG_JS) {
+        if ((script->flags & SCRIPT_FLAG_0x01) == 0) {
+            char name[16];
+            if (scriptsGetFileName(script->index & 0xFFFFFF, name, sizeof(name)) == -1) {
+                return -1;
+            }
+
+            if (jsLoadScript(sid, name) == -1) {
+                return -1;
+            }
+
+            script->flags |= SCRIPT_FLAG_0x01;
+        }
+        return jsExecProc(sid, proc);
+    }
+
     bool programLoaded = false;
     if ((script->flags & SCRIPT_FLAG_0x01) == 0) {
         clock();
@@ -1396,6 +1421,7 @@ static int scriptsLoadScriptsList()
         ScriptsListEntry* entry = &(entries[gScriptsListEntriesLength - 1]);
         entry->local_vars_num = 0;
 
+        entry->isJs = false;
         char* substr = strstr(string, ".int");
         if (substr != nullptr) {
             int length = substr - string;
@@ -1405,6 +1431,18 @@ static int scriptsLoadScriptsList()
 
             strncpy(entry->name, string, 13);
             entry->name[length] = '\0';
+        } else {
+            substr = strstr(string, ".js");
+            if (substr != nullptr) {
+                entry->isJs = true;
+                int length = substr - string;
+                if (length > 13) {
+                    return -1;
+                }
+
+                strncpy(entry->name, string, 13);
+                entry->name[length] = '\0';
+            }
         }
 
         if (strstr(string, "#") != nullptr) {
@@ -1451,7 +1489,11 @@ int _scr_find_str_run_info(int scriptIndex, int* a2, int sid)
 // 0x4A4F68
 static int scriptsGetFileName(int scriptIndex, char* name, size_t size)
 {
-    snprintf(name, size, "%s.int", gScriptsListEntries[scriptIndex].name);
+    if (gScriptsListEntries[scriptIndex].isJs) {
+        snprintf(name, size, "%s.js", gScriptsListEntries[scriptIndex].name);
+    } else {
+        snprintf(name, size, "%s.int", gScriptsListEntries[scriptIndex].name);
+    }
     return 0;
 }
 
@@ -1516,6 +1558,10 @@ int scriptsClearDudeScript()
 // 0x4A50A8
 int scriptsInit()
 {
+    if (jsInit() == -1) {
+        return -1;
+    }
+
     if (!messageListInit(&gScrMessageList)) {
         return -1;
     }
@@ -1638,6 +1684,7 @@ int scriptsExit()
     _scr_remove_all_force();
     _interpretClose();
     programListFree();
+    jsFree();
 
     // NOTE: Uninline.
     scriptsClearPendingRequests();
@@ -2298,6 +2345,11 @@ int scriptRemove(int sid)
     }
 
     Script* script = &(scriptListExtent->scripts[index]);
+
+    if (script->flags & SCRIPT_FLAG_JS) {
+        jsUnloadScript(script->sid);
+    }
+
     if ((script->flags & SCRIPT_FLAG_0x02) != 0) {
         if (script->program != nullptr) {
             script->program = nullptr;

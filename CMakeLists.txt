@@ -128,6 +128,8 @@ target_sources(${EXECUTABLE_NAME} PUBLIC
     "src/interpreter_lib.h"
     "src/interpreter.cc"
     "src/interpreter.h"
+    "src/js_integration.cc"
+    "src/js_integration.h"
     "src/inventory.cc"
     "src/inventory.h"
     "src/item.cc"
@@ -360,6 +362,20 @@ endif()
 
 add_subdirectory("third_party/fpattern")
 target_link_libraries(${EXECUTABLE_NAME} fpattern::fpattern)
+
+add_library(quickjs STATIC
+    "third_party/quickjs/quickjs.c"
+    "third_party/quickjs/dtoa.c"
+    "third_party/quickjs/libregexp.c"
+    "third_party/quickjs/libunicode.c"
+    "third_party/quickjs/cutils.c"
+)
+target_compile_definitions(quickjs PRIVATE
+    _GNU_SOURCE
+    CONFIG_VERSION="2025-09-13"
+)
+target_include_directories(quickjs PUBLIC "third_party/quickjs")
+target_link_libraries(${EXECUTABLE_NAME} quickjs)
 
 if(FALLOUT_VENDORED)
     add_subdirectory("third_party/zlib")
