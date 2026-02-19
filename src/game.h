@@ -26,6 +26,8 @@ int gameInitWithOptions(const char* windowTitle, bool isMapper, int a3, int a4, 
 void gameReset();
 void gameExit();
 int gameHandleKey(int eventCode, bool isInCombatMode);
+void gameHandleCheatInput(int keyCode);
+bool gameIsInvincibleCheatEnabled();
 void gameUiDisable(int a1);
 void gameUiEnable();
 bool gameUiIsDisabled();

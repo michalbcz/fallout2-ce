@@ -83,6 +83,7 @@ static void gameFreeGlobalVars();
 static void showHelp();
 static int gameDbInit();
 static void showSplash();
+static int gameNormalizeAlphabeticKeyCode(int keyCode);
 
 // 0x501C9C
 static char _aGame_0[] = "game\\";
@@ -118,6 +119,10 @@ MessageList gMiscMessageList;
 
 // CE: Sonora folks like to store objects in global variables.
 static void** gGameGlobalPointers = nullptr;
+
+static constexpr char kInvincibilityCheatCode[] = "iddqd";
+static bool gInvincibilityCheatEnabled = false;
+static int gInvincibilityCheatProgress = 0;
 
 // 0x442580
 int gameInitWithOptions(const char* windowTitle, bool isMapper, int font, int a4, int argc, char** argv)
@@ -419,6 +424,8 @@ void gameReset()
     gameDialogReset();
     combatReset();
     _game_user_wants_to_quit = 0;
+    gInvincibilityCheatEnabled = false;
+    gInvincibilityCheatProgress = 0;
     automapReset();
     _init_options_menu();
 
