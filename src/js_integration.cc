@@ -1,6 +1,7 @@
 #include "js_integration.h"
 #include "scripts.h"
 #include "debug.h"
+#include "display_monitor.h"
 
 #include <map>
 #include <string>
@@ -60,6 +61,27 @@ static JSValue js_game_time_hour(JSContext* ctx, JSValueConst this_val, int argc
     return JS_NewInt32(ctx, gameTimeGetHour());
 }
 
+static JSValue js_display_message(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (argc > 0) {
+        const char* str = JS_ToCString(ctx, argv[0]);
+        if (str) {
+            // displayMonitorAddMessage takes non-const char*, so we might need to cast or duplicate if it modifies it.
+            // Assuming it doesn't modify or copies it.
+            // Let's strdup to be safe if it takes ownership or modifies, but standard practice for C strings is safe enough if just reading.
+            // displayMonitorAddMessage likely copies.
+            // Checking displayMonitorAddMessage signature in header: void displayMonitorAddMessage(char* string);
+            // It takes char*.
+            char* buf = strdup(str);
+            if (buf) {
+                displayMonitorAddMessage(buf);
+                free(buf);
+            }
+            JS_FreeCString(ctx, str);
+        }
+    }
+    return JS_UNDEFINED;
+}
+
 static void setupContext(JSContext* ctx) {
     JSValue global_obj = JS_GetGlobalObject(ctx);
 
@@ -71,6 +93,7 @@ static void setupContext(JSContext* ctx) {
     // fallout object
     JSValue fallout = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, fallout, "gameTimeHour", JS_NewCFunction(ctx, js_game_time_hour, "gameTimeHour", 0));
+    JS_SetPropertyStr(ctx, fallout, "print", JS_NewCFunction(ctx, js_display_message, "print", 1));
     JS_SetPropertyStr(ctx, global_obj, "fallout", fallout);
 
     JS_FreeValue(ctx, global_obj);
