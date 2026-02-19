@@ -552,6 +552,13 @@ int gameHandleKey(int eventCode, bool isInCombatMode)
         return 0;
     }
 
+    // CE: Feed key presses into cheat code tracker. If the cheat handler
+    // consumed the key (sequence in progress), skip normal key processing
+    // to avoid side effects like opening inventory on 'i'.
+    if (eventCode > 0 && gameHandleCheatInput(eventCode)) {
+        return 0;
+    }
+
     switch (eventCode) {
     case -20:
         if (interfaceBarEnabled()) {
@@ -1579,6 +1586,55 @@ int gameSetGlobalPointer(int var, void* value)
     gGameGlobalPointers[var] = value;
 
     return 0;
+}
+
+// CE: Normalize uppercase alphabetic key codes to lowercase.
+static int gameNormalizeAlphabeticKeyCode(int keyCode)
+{
+    if (keyCode >= KEY_UPPERCASE_A && keyCode <= KEY_UPPERCASE_Z) {
+        return keyCode + ('a' - 'A');
+    }
+    return keyCode;
+}
+
+// CE: Track sequential key presses against the invincibility cheat code.
+// Returns true if the key was consumed (sequence in progress beyond the first
+// character), which tells the caller to skip normal key processing.
+bool gameHandleCheatInput(int keyCode)
+{
+    int normalized = gameNormalizeAlphabeticKeyCode(keyCode);
+
+    if (normalized == kInvincibilityCheatCode[gInvincibilityCheatProgress]) {
+        gInvincibilityCheatProgress++;
+
+        if (kInvincibilityCheatCode[gInvincibilityCheatProgress] == '\0') {
+            // Full sequence matched — toggle invincibility.
+            gInvincibilityCheatEnabled = !gInvincibilityCheatEnabled;
+            gInvincibilityCheatProgress = 0;
+
+            char msg[] = "You feel invincible!";
+            char msgOff[] = "You feel mortal again.";
+            displayMonitorAddMessage(gInvincibilityCheatEnabled ? msg : msgOff);
+        }
+
+        // Consume the key only if we're mid-sequence (progress > 0).
+        // The first matching key (progress was 0 -> now 1) is NOT consumed,
+        // so its normal action (e.g. 'i' opening inventory) still fires.
+        return gInvincibilityCheatProgress > 1;
+    }
+
+    // Mismatch — reset and check if this key starts a new sequence.
+    gInvincibilityCheatProgress = 0;
+    if (normalized == kInvincibilityCheatCode[0]) {
+        gInvincibilityCheatProgress = 1;
+    }
+
+    return false;
+}
+
+bool gameIsInvincibleCheatEnabled()
+{
+    return gInvincibilityCheatEnabled;
 }
 
 int GameMode::currentGameMode = 0;

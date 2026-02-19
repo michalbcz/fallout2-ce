@@ -4832,6 +4832,11 @@ static void _damage_object(Object* a1, int damage, bool animated, int a4, Object
         return;
     }
 
+    // CE: IDDQD cheat — skip all damage to the player character.
+    if (a1 == gDude && gameIsInvincibleCheatEnabled()) {
+        return;
+    }
+
     if (damage <= 0) {
         return;
     }
