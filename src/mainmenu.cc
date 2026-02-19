@@ -1,6 +1,9 @@
 #include "mainmenu.h"
 
 #include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+
 
 #include "art.h"
 #include "color.h"
@@ -149,8 +152,9 @@ int mainMenuWindowInit()
 
     // TODO: Allow to move version text
     // Version.
-    char version[VERSION_MAX];
+    char version[64];
     versionGetVersion(version, sizeof(version));
+    strcat(version, " (Bernie)");
     len = fontGetStringWidth(version);
     windowDrawText(gMainMenuWindow, version, 0, 615 - len, 460, fontSettings | 0x06000000);
 
