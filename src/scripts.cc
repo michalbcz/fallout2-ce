@@ -1293,7 +1293,7 @@ int scriptExecProc(int sid, int proc)
 
             script->flags |= SCRIPT_FLAG_0x01;
         }
-        return jsExecProc(sid, proc);
+        return jsExecProc(sid, gScriptProcNames[proc]);
     }
 
     bool programLoaded = false;

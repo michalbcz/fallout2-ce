@@ -146,12 +146,11 @@ int jsUnloadScript(int sid) {
     return 0;
 }
 
-int jsExecProc(int sid, int proc) {
+int jsExecProc(int sid, const char* procName) {
     auto it = scriptContexts.find(sid);
     if (it == scriptContexts.end()) return -1;
 
     JSContext* ctx = it->second;
-    const char* procName = gScriptProcNames[proc];
 
     if (!procName) return -1;
 
