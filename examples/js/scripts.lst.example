@@ -1,0 +1,90 @@
+; =============================================================================
+; scripts.lst - Format Reference
+; =============================================================================
+;
+; The real scripts.lst is embedded in master.dat and contains 1303 entries.
+; You do NOT need to modify or create this file to use JavaScript scripts.
+;
+; The engine (Fallout 2 CE) automatically detects .js files placed in
+; data\scripts\ and uses them instead of the compiled .int from master.dat.
+; Just drop a .js file — no scripts.lst editing required.
+;
+; This file documents the FORMAT only, for advanced use cases.
+;
+; =============================================================================
+; FORMAT
+; =============================================================================
+;
+; Each non-empty, non-comment line is one script entry.
+; Scripts are identified by ZERO-BASED LINE INDEX, not by name.
+; Map files (.map) store a 1-based scriptIndex that maps directly here.
+;
+; Line format:
+;
+;   scriptname.int                         (compiled INT script)
+;   scriptname.int  ; optional comment     (comment after filename)
+;   scriptname.int  # local_vars=5         (local variable count metadata)
+;   scriptname.int  ; comment  # local_vars=10   (both)
+;
+;   scriptname.js                          (JavaScript script — CE extension)
+;   scriptname.js   # local_vars=0        (JS script with local var metadata)
+;
+; Parser rules:
+;   - The engine looks for ".int" or ".js" substring to determine type.
+;   - Everything after "#" on the same line is metadata.
+;   - "local_vars=N" sets the number of local variables for the script.
+;   - Lines starting with ";" are comments and are NOT parsed as script entries.
+;     (Do not add comment-only lines in the real file — this shifts indices!)
+;
+; =============================================================================
+; CRITICAL RULES
+; =============================================================================
+;
+;   1. NEVER add or remove lines in the real scripts.lst.
+;      Map files reference scripts by 1-based line number.
+;      Adding/removing lines shifts ALL indices and breaks ALL maps.
+;
+;   2. The engine checks for a matching .js file on disk BEFORE loading .int.
+;      So you can override any script just by placing a .js file in:
+;        data\scripts\<scriptname>.js
+;      You do NOT need to change scripts.lst at all.
+;
+;   3. If you do supply a custom scripts.lst in data\scripts\scripts.lst,
+;      it MUST contain all 1303 entries in the correct order.
+;      The VFS will use your file instead of the one in master.dat.
+;
+; =============================================================================
+; TEMPLE OF TRIALS (ARTemple) — REAL INDEX
+; =============================================================================
+;
+; The Temple of Trials map script is ARTemple, at LINE INDEX 744 (0-based).
+; The map stores scriptIndex=745 (1-based).
+;
+; In the vanilla scripts.lst it looks like:
+;
+;   ARTemple.int    ; Arroyo Temple map script      # local_vars=0
+;
+; To override it with JavaScript, simply place your script at:
+;
+;   data\scripts\ARTemple.js
+;
+; The engine will auto-detect it and use it instead of ARTemple.int.
+; No scripts.lst modification needed.
+;
+; =============================================================================
+; EXAMPLE ENTRIES (illustrative — line numbers are for reference only)
+; =============================================================================
+;
+; Line 0:
+gloklint.int             # local_vars=0
+; Line 1:
+dcKlint.int              # local_vars=0
+; Line 2:
+acklint.int              # local_vars=10
+; ...
+; Line 744 (Temple of Trials):
+ARTemple.int             # local_vars=0
+; Line 745:
+ARBridge.int             # local_vars=6
+; ...
+; (1303 entries total in the real file)

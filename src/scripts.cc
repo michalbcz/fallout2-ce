@@ -670,6 +670,8 @@ static Program* scriptsCreateProgramByName(const char* name)
     strcat(path, name);
     strcat(path, ".int");
 
+    jsDebugLog("[scripts.cc] scriptsCreateProgramByName: resolved path='%s'\n", path);
+
     return programCreateByPath(path);
 }
 
@@ -1272,11 +1274,57 @@ int scriptExecProc(int sid, int proc)
         return -1;
     }
 
+    // Always log scriptExecProc calls
+    {
+        int idx = script->index & 0xFFFFFF;
+        const char* entryName = (script->index != -1 && idx < gScriptsListEntriesLength) ? gScriptsListEntries[idx].name : "(unknown)";
+        bool entryIsJs = (script->index != -1 && idx < gScriptsListEntriesLength) ? gScriptsListEntries[idx].isJs : false;
+        jsDebugLog("[scripts.cc] scriptExecProc: sid=%d proc=%d('%s') script->index=%d entry='%s' isJs=%s flags=0x%x\n",
+            sid, proc, gScriptProcNames[proc],
+            script->index, entryName,
+            entryIsJs ? "TRUE" : "FALSE",
+            script->flags);
+    }
+
     script->scriptOverrides = 0;
 
-    if ((script->flags & SCRIPT_FLAG_JS) == 0) {
-        if (script->index != -1 && gScriptsListEntries[script->index & 0xFFFFFF].isJs) {
-            script->flags |= SCRIPT_FLAG_JS;
+    // Auto-detect: if a .js file exists on disk, prefer it over .int from DAT
+    if ((script->flags & SCRIPT_FLAG_JS) == 0 && script->index != -1) {
+        int idx = script->index & 0xFFFFFF;
+        if (idx < gScriptsListEntriesLength) {
+            // First check scripts.lst isJs flag
+            if (gScriptsListEntries[idx].isJs) {
+                jsDebugLog("[scripts.cc]   -> Marking as JS (from scripts.lst isJs flag)\n");
+                script->flags |= SCRIPT_FLAG_JS;
+            } else {
+                // Auto-detect: check if .js file exists on disk
+                const char* baseName = gScriptsListEntries[idx].name;
+                char jsPath[256];
+                FILE* probe = nullptr;
+
+                // Try data/scripts/name.js
+                snprintf(jsPath, sizeof(jsPath), "data/scripts/%s.js", baseName);
+                probe = fopen(jsPath, "rb");
+                if (!probe) {
+                    snprintf(jsPath, sizeof(jsPath), "data\\scripts\\%s.js", baseName);
+                    probe = fopen(jsPath, "rb");
+                }
+                if (!probe) {
+                    snprintf(jsPath, sizeof(jsPath), "scripts/%s.js", baseName);
+                    probe = fopen(jsPath, "rb");
+                }
+                if (!probe) {
+                    snprintf(jsPath, sizeof(jsPath), "scripts\\%s.js", baseName);
+                    probe = fopen(jsPath, "rb");
+                }
+
+                if (probe) {
+                    fclose(probe);
+                    jsDebugLog("[scripts.cc]   -> AUTO-DETECT: Found JS file on disk: '%s' — overriding to JS!\n", jsPath);
+                    gScriptsListEntries[idx].isJs = true;
+                    script->flags |= SCRIPT_FLAG_JS;
+                }
+            }
         }
     }
 
@@ -1284,18 +1332,24 @@ int scriptExecProc(int sid, int proc)
         if ((script->flags & SCRIPT_FLAG_0x01) == 0) {
             char name[16];
             if (scriptsGetFileName(script->index & 0xFFFFFF, name, sizeof(name)) == -1) {
+                jsDebugLog("[scripts.cc]   -> FAILED to get JS filename for index=%d\n", script->index & 0xFFFFFF);
                 return -1;
             }
 
+            jsDebugLog("[scripts.cc]   -> Loading JS script: '%s'\n", name);
+
             if (jsLoadScript(sid, name) == -1) {
+                jsDebugLog("[scripts.cc]   -> jsLoadScript FAILED for '%s'\n", name);
                 return -1;
             }
 
             script->flags |= SCRIPT_FLAG_0x01;
         }
+        jsDebugLog("[scripts.cc]   -> Executing JS proc '%s'\n", gScriptProcNames[proc]);
         return jsExecProc(sid, gScriptProcNames[proc]);
     }
 
+    // INT script path
     bool programLoaded = false;
     if ((script->flags & SCRIPT_FLAG_0x01) == 0) {
         clock();
@@ -1304,6 +1358,8 @@ int scriptExecProc(int sid, int proc)
         if (scriptsGetFileName(script->index & 0xFFFFFF, name, sizeof(name)) == -1) {
             return -1;
         }
+
+        jsDebugLog("[scripts.cc]   -> Loading INT script: '%s'\n", name);
 
         char* pch = strchr(name, '.');
         if (pch != nullptr) {
@@ -1402,10 +1458,15 @@ static int scriptsLoadScriptsList()
     _script_make_path(path);
     strcat(path, "scripts.lst");
 
+    jsDebugLog("\n[scripts.cc] scriptsLoadScriptsList: Opening '%s'\n", path);
+
     File* stream = fileOpen(path, "rt");
     if (stream == nullptr) {
+        jsDebugLog("[scripts.cc] scriptsLoadScriptsList: FAILED to open '%s'\n", path);
         return -1;
     }
+
+    jsDebugLog("[scripts.cc] scriptsLoadScriptsList: File opened successfully\n");
 
     char string[260];
     while (fileReadString(string, 260, stream)) {
@@ -1451,9 +1512,24 @@ static int scriptsLoadScriptsList()
                 entry->local_vars_num = atoi(substr + 11);
             }
         }
+
+        // Log every entry that is JS, and a selection of other entries for context
+        if (entry->isJs) {
+            jsDebugLog("[scripts.cc]   [%d] '%s' -> isJs=TRUE, local_vars=%d\n",
+                gScriptsListEntriesLength - 1, entry->name, entry->local_vars_num);
+        }
     }
 
     fileClose(stream);
+
+    jsDebugLog("[scripts.cc] scriptsLoadScriptsList: Loaded %d entries total\n", gScriptsListEntriesLength);
+
+    // Log a summary of all JS entries
+    for (int i = 0; i < gScriptsListEntriesLength; i++) {
+        if (gScriptsListEntries[i].isJs) {
+            jsDebugLog("[scripts.cc]   JS entry at index %d: '%s'\n", i, gScriptsListEntries[i].name);
+        }
+    }
 
     return 0;
 }

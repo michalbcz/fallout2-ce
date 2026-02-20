@@ -11,4 +11,7 @@ void jsFree();
 
 } // namespace fallout
 
+// Debug logger - always writes to js_debug.log, declared outside namespace
+void jsDebugLog(const char* format, ...);
+
 #endif // JS_INTEGRATION_H

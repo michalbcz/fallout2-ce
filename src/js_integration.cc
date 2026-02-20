@@ -9,8 +9,39 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <cstdarg>
 
 #include "quickjs.h"
+
+// Dedicated file logger for JS debugging - always writes to js_debug.log
+static FILE* jsLogFile = nullptr;
+
+void jsDebugLog(const char* format, ...) {
+    if (!jsLogFile) {
+        jsLogFile = fopen("js_debug.log", "wt");
+        if (!jsLogFile) return;
+        fprintf(jsLogFile, "=== Fallout 2 CE - JS Debug Log ===\n\n");
+        fflush(jsLogFile);
+    }
+    va_list args;
+    va_start(args, format);
+    vfprintf(jsLogFile, format, args);
+    va_end(args);
+    fflush(jsLogFile);
+}
+
+static void jsShowMessage(const char* format, ...) {
+    char buf[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+    char* msg = strdup(buf);
+    if (msg) {
+        fallout::displayMonitorAddMessage(msg);
+        free(msg);
+    }
+}
 
 namespace fallout {
 
@@ -100,46 +131,110 @@ static void setupContext(JSContext* ctx) {
 }
 
 int jsInit() {
-    if (rt) return 0;
+    jsDebugLog("jsInit() called\n");
+    if (rt) {
+        jsDebugLog("jsInit(): runtime already exists, skipping\n");
+        return 0;
+    }
     rt = JS_NewRuntime();
-    if (!rt) return -1;
+    if (!rt) {
+        jsDebugLog("jsInit() FAILED: could not create JS runtime\n");
+        return -1;
+    }
+    jsDebugLog("jsInit() SUCCESS: JS runtime created\n");
     return 0;
 }
 
 int jsLoadScript(int sid, const char* name) {
-    if (!rt) return -1;
+    jsDebugLog("jsLoadScript(sid=%d, name='%s') called\n", sid, name ? name : "(null)");
+
+    if (!rt) {
+        jsDebugLog("  FAILED: JS runtime not initialized!\n");
+        jsShowMessage("JS ERROR: runtime not initialized");
+        return -1;
+    }
+
+    // Check if already loaded
+    auto existing = scriptContexts.find(sid);
+    if (existing != scriptContexts.end()) {
+        jsDebugLog("  Script sid=%d already loaded, reusing context\n", sid);
+        return 0;
+    }
 
     // Create new context for this script
     JSContext* ctx = JS_NewContext(rt);
-    if (!ctx) return -1;
+    if (!ctx) {
+        jsDebugLog("  FAILED: could not create JS context\n");
+        jsShowMessage("JS ERROR: could not create context");
+        return -1;
+    }
 
     setupContext(ctx);
 
-    // Construct path. Assuming name is relative to scripts/ or contains it.
-    // scripts.cc passes name from scripts.lst.
-    // We should assume base path "scripts/" needs to be prepended if not present.
-    // But scripts.cc seems to construct paths.
-    // Let's rely on the caller passing a name we can find, or prepend "scripts/".
-    // scriptsCreateProgramByName uses `_cd_path_base` + `gScriptsBasePath` + name + ".int".
-
-    // Here we will assume we are passed "scripts/name.js" or just "name.js".
-    // I'll try with "scripts/" prepended if file not found?
-    // Let's try to just open the name first.
-
+    // Try multiple path strategies
     char path[256];
-    snprintf(path, sizeof(path), "scripts/%s", name);
-
     size_t len;
-    char* buf = readFile(path, &len);
+    char* buf = nullptr;
+
+    // Strategy 1: data/scripts/name (VFS patches path)
+    snprintf(path, sizeof(path), "data/scripts/%s", name);
+    jsDebugLog("  Trying path: '%s'\n", path);
+    buf = readFile(path, &len);
+
     if (!buf) {
-        // Try without prefix
+        // Strategy 2: data\scripts\name (Windows backslash)
+        snprintf(path, sizeof(path), "data\\scripts\\%s", name);
+        jsDebugLog("  Trying path: '%s'\n", path);
+        buf = readFile(path, &len);
+    }
+
+    if (!buf) {
+        // Strategy 3: scripts/name
+        snprintf(path, sizeof(path), "scripts/%s", name);
+        jsDebugLog("  Trying path: '%s'\n", path);
+        buf = readFile(path, &len);
+    }
+
+    if (!buf) {
+        // Strategy 4: scripts\name (Windows backslash)
+        snprintf(path, sizeof(path), "scripts\\%s", name);
+        jsDebugLog("  Trying path: '%s'\n", path);
+        buf = readFile(path, &len);
+    }
+
+    if (!buf) {
+        // Strategy 5: just name
+        jsDebugLog("  Trying path: '%s'\n", name);
         buf = readFile(name, &len);
-        if (!buf) {
-            debugPrint("JS: Could not load script %s\n", name);
-            JS_FreeContext(ctx);
-            return -1;
+        if (buf) {
+            strncpy(path, name, sizeof(path));
+            path[sizeof(path) - 1] = '\0';
         }
-        strncpy(path, name, sizeof(path));
+    }
+
+    if (!buf) {
+        jsDebugLog("  FAILED: Could not open file with any path strategy!\n");
+        jsShowMessage("JS ERROR: cannot find %s", name);
+        debugPrint("JS: Could not load script %s\n", name);
+        JS_FreeContext(ctx);
+        return -1;
+    }
+
+    jsDebugLog("  SUCCESS: Read %zu bytes from '%s'\n", len, path);
+    jsDebugLog("  --- JS file first lines ---\n");
+    {
+        // Log first 5 lines of file content
+        const char* p = buf;
+        for (int lineNum = 1; lineNum <= 5 && p < buf + len; lineNum++) {
+            const char* eol = p;
+            while (eol < buf + len && *eol != '\n') eol++;
+            int lineLen = (int)(eol - p);
+            if (lineLen > 120) lineLen = 120;
+            jsDebugLog("  %d: %.*s\n", lineNum, lineLen, p);
+            if (eol < buf + len) eol++; // skip \n
+            p = eol;
+        }
+        jsDebugLog("  --- end ---\n");
     }
 
     JSValue val = JS_Eval(ctx, buf, len, path, JS_EVAL_TYPE_GLOBAL);
@@ -148,6 +243,8 @@ int jsLoadScript(int sid, const char* name) {
     if (JS_IsException(val)) {
         JSValue ex = JS_GetException(ctx);
         const char* str = JS_ToCString(ctx, ex);
+        jsDebugLog("  JS EVAL ERROR in %s: %s\n", name, str ? str : "(unknown)");
+        jsShowMessage("JS EVAL ERROR: %s", str ? str : "unknown");
         debugPrint("JS Error in %s: %s\n", name, str);
         JS_FreeCString(ctx, str);
         JS_FreeValue(ctx, ex);
@@ -158,6 +255,8 @@ int jsLoadScript(int sid, const char* name) {
     JS_FreeValue(ctx, val);
 
     scriptContexts[sid] = ctx;
+    jsDebugLog("  SUCCESS: Script loaded and evaluated, sid=%d\n", sid);
+    jsShowMessage("JS loaded: %s (sid=%d)", name, sid);
     return 0;
 }
 
@@ -170,25 +269,38 @@ int jsUnloadScript(int sid) {
 }
 
 int jsExecProc(int sid, const char* procName) {
+    jsDebugLog("jsExecProc(sid=%d, proc='%s') called\n", sid, procName ? procName : "(null)");
+
     auto it = scriptContexts.find(sid);
-    if (it == scriptContexts.end()) return -1;
+    if (it == scriptContexts.end()) {
+        jsDebugLog("  FAILED: no context found for sid=%d\n", sid);
+        return -1;
+    }
 
     JSContext* ctx = it->second;
 
-    if (!procName) return -1;
+    if (!procName) {
+        jsDebugLog("  FAILED: procName is null\n");
+        return -1;
+    }
 
     JSValue global_obj = JS_GetGlobalObject(ctx);
     JSValue func = JS_GetPropertyStr(ctx, global_obj, procName);
     JS_FreeValue(ctx, global_obj);
 
     if (JS_IsFunction(ctx, func)) {
+        jsDebugLog("  Calling JS function '%s'...\n", procName);
         JSValue ret = JS_Call(ctx, func, JS_UNDEFINED, 0, nullptr);
         if (JS_IsException(ret)) {
             JSValue ex = JS_GetException(ctx);
             const char* str = JS_ToCString(ctx, ex);
+            jsDebugLog("  JS RUNTIME ERROR in '%s': %s\n", procName, str ? str : "(unknown)");
+            jsShowMessage("JS ERROR in %s: %s", procName, str ? str : "unknown");
             debugPrint("JS Error exec %s: %s\n", procName, str);
             JS_FreeCString(ctx, str);
             JS_FreeValue(ctx, ex);
+        } else {
+            jsDebugLog("  SUCCESS: '%s' executed\n", procName);
         }
         JS_FreeValue(ctx, ret);
         JS_FreeValue(ctx, func);
@@ -196,17 +308,26 @@ int jsExecProc(int sid, const char* procName) {
     }
 
     JS_FreeValue(ctx, func);
+    jsDebugLog("  Proc '%s' not found or not a function (this is normal for procs the script doesn't implement)\n", procName);
     return -1; // Proc not found or not a function
 }
 
 void jsFree() {
+    jsDebugLog("jsFree() called, freeing %zu contexts\n", scriptContexts.size());
     for (auto& pair : scriptContexts) {
+        jsDebugLog("  Freeing context for sid=%d\n", pair.first);
         JS_FreeContext(pair.second);
     }
     scriptContexts.clear();
     if (rt) {
         JS_FreeRuntime(rt);
         rt = nullptr;
+    }
+    jsDebugLog("jsFree() done\n");
+    if (jsLogFile) {
+        fprintf(jsLogFile, "\n=== JS Debug Log End ===\n");
+        fclose(jsLogFile);
+        jsLogFile = nullptr;
     }
 }
 

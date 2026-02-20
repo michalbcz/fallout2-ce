@@ -14,6 +14,7 @@
 #include "critter.h"
 #include "cycle.h"
 #include "debug.h"
+#include "display_monitor.h"
 #include "draw.h"
 #include "elevator.h"
 #include "game.h"
@@ -23,6 +24,7 @@
 #include "input.h"
 #include "interface.h"
 #include "item.h"
+#include "js_integration.h"
 #include "light.h"
 #include "loadsave.h"
 #include "memory.h"
@@ -949,9 +951,24 @@ static int mapLoad(File* stream)
 
     scriptsEnable();
 
+    // DEBUG: Log map info
+    jsDebugLog("\n[map.cc] === MAP LOADED ===\n");
+    jsDebugLog("[map.cc]   Map name: '%s'\n", gMapHeader.name);
+    jsDebugLog("[map.cc]   Map scriptIndex (1-based): %d\n", gMapHeader.scriptIndex);
+    jsDebugLog("[map.cc]   Map version: %d\n", gMapHeader.version);
+    {
+        char debugMsg[128];
+        snprintf(debugMsg, sizeof(debugMsg), "MAP: %s (scriptIdx=%d)", gMapHeader.name, gMapHeader.scriptIndex);
+        displayMonitorAddMessage(debugMsg);
+    }
+
     if (gMapHeader.scriptIndex > 0) {
+        int scriptListIndex = gMapHeader.scriptIndex - 1;
+        jsDebugLog("[map.cc]   Script list index (0-based): %d\n", scriptListIndex);
+
         error = "Error creating new map script";
         if (scriptAdd(&gMapSid, SCRIPT_TYPE_SYSTEM) == -1) {
+            jsDebugLog("[map.cc]   FAILED: scriptAdd returned -1\n");
             goto err;
         }
 
@@ -970,13 +987,29 @@ static int mapLoad(File* stream)
         object->id = scriptsNewObjectId();
         script->ownerId = object->id;
         script->owner = object;
+
+        jsDebugLog("[map.cc]   Map script sid=%d, script->index=%d\n", gMapSid, script->index);
+        {
+            char scriptInfo[128];
+            snprintf(scriptInfo, sizeof(scriptInfo), "Script index=%d for map %s", scriptListIndex, gMapHeader.name);
+            displayMonitorAddMessage(scriptInfo);
+        }
+
         _scr_spatials_disable();
+        jsDebugLog("[map.cc]   Calling scriptExecProc(sid=%d, SCRIPT_PROC_MAP_ENTER)\n", gMapSid);
         scriptExecProc(gMapSid, SCRIPT_PROC_MAP_ENTER);
         _scr_spatials_enable();
 
         error = "Error Setting up random encounter";
         if (wmSetupRandomEncounter() == -1) {
             goto err;
+        }
+    } else {
+        jsDebugLog("[map.cc]   No map script (scriptIndex=%d)\n", gMapHeader.scriptIndex);
+        {
+            char noScript[128];
+            snprintf(noScript, sizeof(noScript), "MAP: %s has NO script", gMapHeader.name);
+            displayMonitorAddMessage(noScript);
         }
     }
 
