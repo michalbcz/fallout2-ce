@@ -59,12 +59,17 @@ function map_enter_p_proc() {
 
 ## 6. Teleporting to your Map
 
-To test it, you can tell the engine to start directly on your new map.
+To test it, you can tell the engine to start directly on your new map. Fallout 2 CE supports a subset of `sfall` settings via a file named `ddraw.ini`.
 
-1. Open `ddraw.ini` in your game folder.
-2. Find the `[Main]` section and the `StartingMap` setting.
-3. Change it to: `StartingMap=MyFirstMap.map`
-4. Run the game.
+1. Look for `ddraw.ini` in your game folder. If it doesn't exist, create a new text file and rename it to `ddraw.ini`.
+2. Open it and ensure it has a `[Misc]` section (not `[Main]`) with the `StartingMap` setting:
+
+```ini
+[Misc]
+StartingMap=MyFirstMap.map
+```
+
+3. Run the game and start a **New Game**. Instead of the Temple of Trials, you should load directly into your new map!
 
 Congratulations! You have created a new location and attached a JavaScript script to it.
 
