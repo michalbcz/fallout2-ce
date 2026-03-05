@@ -26,6 +26,8 @@
 #include "svga.h"
 #include "window_manager.h"
 #include "worldmap.h"
+#include <SDL.h>
+#include <SDL_mixer.h>
 
 namespace fallout {
 
@@ -1524,6 +1526,151 @@ void _gsound_lrg_butt_release(int btn, int keyCode)
 }
 
 // 0x4519A8
+static bool gMixerInitialized = false;
+static Mix_Music* gCurrentMusic = nullptr;
+static Mix_Chunk* gMixChunks[16] = { nullptr }; // Track channels
+
+static void initializeMixerIfNeeded() {
+    if (!gMixerInitialized) {
+        if (Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 1024) >= 0) {
+            Mix_AllocateChannels(16);
+            gMixerInitialized = true;
+        }
+    }
+}
+
+static Sint64 vfs_size(SDL_RWops* context) {
+    return fileGetSize((File*)context->hidden.unknown.data1);
+}
+
+static Sint64 vfs_seek(SDL_RWops* context, Sint64 offset, int whence) {
+    int origin = SEEK_SET;
+    if (whence == RW_SEEK_CUR) origin = SEEK_CUR;
+    else if (whence == RW_SEEK_END) origin = SEEK_END;
+    return fileSeek((File*)context->hidden.unknown.data1, offset, origin);
+}
+
+static size_t vfs_read(SDL_RWops* context, void* ptr, size_t size, size_t maxnum) {
+    return fileRead(ptr, size, maxnum, (File*)context->hidden.unknown.data1);
+}
+
+static size_t vfs_write(SDL_RWops* context, const void* ptr, size_t size, size_t num) {
+    return 0;
+}
+
+static int vfs_close(SDL_RWops* context) {
+    if (context) {
+        if (context->hidden.unknown.data1) {
+            fileClose((File*)context->hidden.unknown.data1);
+        }
+        SDL_FreeRW(context);
+    }
+    return 0;
+}
+
+static SDL_RWops* createVfsRwOps(const char* name) {
+    File* stream = fileOpen(name, "rb");
+    if (!stream) return nullptr;
+
+    SDL_RWops* rw = SDL_AllocRW();
+    if (!rw) {
+        fileClose(stream);
+        return nullptr;
+    }
+    rw->size = vfs_size;
+    rw->seek = vfs_seek;
+    rw->read = vfs_read;
+    rw->write = vfs_write;
+    rw->close = vfs_close;
+    rw->hidden.unknown.data1 = stream;
+    return rw;
+}
+
+int soundPlayMusic(const char* name) {
+    initializeMixerIfNeeded();
+    if (!gMixerInitialized) return -1;
+    if (gCurrentMusic) {
+        Mix_HaltMusic();
+        Mix_FreeMusic(gCurrentMusic);
+        gCurrentMusic = nullptr;
+    }
+
+    SDL_RWops* rw = createVfsRwOps(name);
+    if (!rw) return -1;
+
+    gCurrentMusic = Mix_LoadMUS_RW(rw, 1);
+
+    if (gCurrentMusic) {
+        Mix_VolumeMusic((gMusicVolume * MIX_MAX_VOLUME) / VOLUME_MAX);
+        Mix_PlayMusic(gCurrentMusic, -1);
+        return 0;
+    }
+    return -1;
+}
+
+void soundStopMusic() {
+    if (gMixerInitialized && gCurrentMusic) {
+        Mix_HaltMusic();
+        Mix_FreeMusic(gCurrentMusic);
+        gCurrentMusic = nullptr;
+    }
+}
+
+void soundSetMusicVolume2(int vol) {
+    if (gMixerInitialized) {
+        Mix_VolumeMusic((vol * MIX_MAX_VOLUME) / VOLUME_MAX);
+    }
+}
+
+static void cleanUpFinishedChannels() {
+    if (!gMixerInitialized) return;
+    for (int i = 0; i < 16; ++i) {
+        if (gMixChunks[i] && Mix_Playing(i) == 0) {
+            Mix_FreeChunk(gMixChunks[i]);
+            gMixChunks[i] = nullptr;
+        }
+    }
+}
+
+int soundPlaySound(const char* name) {
+    initializeMixerIfNeeded();
+    if (!gMixerInitialized) return -1;
+
+    cleanUpFinishedChannels();
+
+    SDL_RWops* rw = createVfsRwOps(name);
+    if (!rw) return -1;
+
+    Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1);
+    if (chunk) {
+        int channel = Mix_PlayChannel(-1, chunk, 0);
+        if (channel >= 0 && channel < 16) {
+            if (gMixChunks[channel]) {
+                Mix_HaltChannel(channel);
+                Mix_FreeChunk(gMixChunks[channel]);
+            }
+            gMixChunks[channel] = chunk;
+            Mix_Volume(channel, (gSoundEffectsVolume * MIX_MAX_VOLUME) / VOLUME_MAX);
+            return channel;
+        } else {
+            Mix_FreeChunk(chunk);
+        }
+    }
+    return -1;
+}
+
+void soundStopSound(int channel) {
+    if (gMixerInitialized && channel >= 0 && channel < 16) {
+        Mix_HaltChannel(channel);
+    }
+}
+
+void soundSetSoundVolume(int channel, int vol) {
+    if (gMixerInitialized && channel >= 0 && channel < 16) {
+        Mix_Volume(channel, (vol * MIX_MAX_VOLUME) / VOLUME_MAX);
+    }
+}
+
 int soundPlayFile(const char* name)
 {
     if (!gGameSoundInitialized) {
@@ -1532,6 +1679,11 @@ int soundPlayFile(const char* name)
 
     if (!gSoundEffectsEnabled) {
         return -1;
+    }
+
+    size_t len = strlen(name);
+    if (len >= 4 && (compat_stricmp(name + len - 4, ".mp3") == 0 || compat_stricmp(name + len - 4, ".wav") == 0)) {
+        return soundPlaySound(name);
     }
 
     Sound* sound = soundEffectLoad(name, nullptr);
@@ -1548,6 +1700,7 @@ int soundPlayFile(const char* name)
 void _gsound_bkg_proc()
 {
     soundContinueAll();
+    cleanUpFinishedChannels();
 }
 
 // 0x451A08

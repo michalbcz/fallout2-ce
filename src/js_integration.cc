@@ -12,6 +12,8 @@
 
 #include "quickjs.h"
 
+#include "game_sound.h"
+
 namespace fallout {
 
 static JSRuntime* rt = nullptr;
@@ -94,6 +96,72 @@ static void setupContext(JSContext* ctx) {
     JSValue fallout = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, fallout, "gameTimeHour", JS_NewCFunction(ctx, js_game_time_hour, "gameTimeHour", 0));
     JS_SetPropertyStr(ctx, fallout, "print", JS_NewCFunction(ctx, js_display_message, "print", 1));
+
+    auto js_play_sound = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        if (argc >= 1) {
+            const char* path = JS_ToCString(ctx, argv[0]);
+            int channel = -1;
+            if (path) {
+                channel = soundPlayFile(path);
+                JS_FreeCString(ctx, path);
+            }
+            return JS_NewInt32(ctx, channel);
+        }
+        return JS_UNDEFINED;
+    };
+
+    auto js_stop_sound = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        if (argc >= 1) {
+            int channel;
+            if (JS_ToInt32(ctx, &channel, argv[0]) == 0) {
+                soundStopSound(channel);
+            }
+        }
+        return JS_UNDEFINED;
+    };
+
+    auto js_set_sound_volume = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        if (argc >= 2) {
+            int channel, vol;
+            if (JS_ToInt32(ctx, &channel, argv[0]) == 0 && JS_ToInt32(ctx, &vol, argv[1]) == 0) {
+                soundSetSoundVolume(channel, vol);
+            }
+        }
+        return JS_UNDEFINED;
+    };
+
+    auto js_play_music = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        if (argc >= 1) {
+            const char* path = JS_ToCString(ctx, argv[0]);
+            if (path) {
+                soundPlayMusic(path);
+                JS_FreeCString(ctx, path);
+            }
+        }
+        return JS_UNDEFINED;
+    };
+
+    auto js_stop_music = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        soundStopMusic();
+        return JS_UNDEFINED;
+    };
+
+    auto js_set_music_volume = [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) -> JSValue {
+        if (argc >= 1) {
+            int vol;
+            if (JS_ToInt32(ctx, &vol, argv[0]) == 0) {
+                soundSetMusicVolume2(vol);
+            }
+        }
+        return JS_UNDEFINED;
+    };
+
+    JS_SetPropertyStr(ctx, fallout, "playSound", JS_NewCFunction(ctx, js_play_sound, "playSound", 1));
+    JS_SetPropertyStr(ctx, fallout, "stopSound", JS_NewCFunction(ctx, js_stop_sound, "stopSound", 1));
+    JS_SetPropertyStr(ctx, fallout, "setSoundVolume", JS_NewCFunction(ctx, js_set_sound_volume, "setSoundVolume", 2));
+    JS_SetPropertyStr(ctx, fallout, "playMusic", JS_NewCFunction(ctx, js_play_music, "playMusic", 1));
+    JS_SetPropertyStr(ctx, fallout, "stopMusic", JS_NewCFunction(ctx, js_stop_music, "stopMusic", 0));
+    JS_SetPropertyStr(ctx, fallout, "setMusicVolume", JS_NewCFunction(ctx, js_set_music_volume, "setMusicVolume", 1));
     JS_SetPropertyStr(ctx, global_obj, "fallout", fallout);
 
     JS_FreeValue(ctx, global_obj);
