@@ -380,9 +380,11 @@ target_link_libraries(${EXECUTABLE_NAME} quickjs)
 if(FALLOUT_VENDORED)
     add_subdirectory("third_party/zlib")
     add_subdirectory("third_party/sdl2")
+    add_subdirectory("third_party/sdl2_mixer")
 else()
     find_package(ZLIB)
     find_package(SDL2)
+    find_package(SDL2_mixer)
 endif()
 
 target_link_libraries(${EXECUTABLE_NAME} ${ZLIB_LIBRARIES})
@@ -390,6 +392,9 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
 
 target_link_libraries(${EXECUTABLE_NAME} ${SDL2_LIBRARIES})
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
+
+target_link_libraries(${EXECUTABLE_NAME} ${SDL2_MIXER_LIBRARIES})
+target_include_directories(${EXECUTABLE_NAME} PRIVATE ${SDL2_MIXER_INCLUDE_DIRS})
 
 if(APPLE)
     if(IOS)

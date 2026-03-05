@@ -82,6 +82,12 @@ void _gsound_med_butt_release(int btn, int keyCode);
 void _gsound_lrg_butt_press(int btn, int keyCode);
 void _gsound_lrg_butt_release(int btn, int keyCode);
 int soundPlayFile(const char* name);
+int soundPlayMusic(const char* name);
+void soundStopMusic();
+void soundSetMusicVolume2(int vol);
+int soundPlaySound(const char* name);
+void soundStopSound(int channel);
+void soundSetSoundVolume(int channel, int vol);
 int _gsound_sfx_q_start();
 int ambientSoundEffectEventProcess(Object* a1, void* a2);
 

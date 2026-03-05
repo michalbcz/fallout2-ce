@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "game_sound.h"
+
 #include "animation.h"
 #include "art.h"
 #include "color.h"
@@ -1037,6 +1039,49 @@ static void op_div(Program* program)
     }
 }
 
+// play_sound
+static void op_play_sound(Program* program)
+{
+    char* name = programStackPopString(program);
+    int channel = soundPlayFile(name);
+    programStackPushInteger(program, channel);
+}
+
+// stop_sound
+static void op_stop_sound(Program* program)
+{
+    int channel = programStackPopInteger(program);
+    soundStopSound(channel);
+}
+
+// set_sound_volume
+static void op_set_sound_volume(Program* program)
+{
+    int vol = programStackPopInteger(program);
+    int channel = programStackPopInteger(program);
+    soundSetSoundVolume(channel, vol);
+}
+
+// play_music
+static void op_play_music(Program* program)
+{
+    char* name = programStackPopString(program);
+    soundPlayMusic(name);
+}
+
+// stop_music
+static void op_stop_music(Program* program)
+{
+    soundStopMusic();
+}
+
+// set_music_volume
+static void op_set_music_volume(Program* program)
+{
+    int vol = programStackPopInteger(program);
+    soundSetMusicVolume2(vol);
+}
+
 void sfallOpcodesInit()
 {
     interpreterRegisterOpcode(0x8156, opReadByte);
@@ -1122,6 +1167,12 @@ void sfallOpcodesInit()
     interpreterRegisterOpcode(0x827B, op_sfall_func5);
     interpreterRegisterOpcode(0x827C, op_sfall_func6);
     interpreterRegisterOpcode(0x827F, op_div);
+    interpreterRegisterOpcode(0x8280, op_play_sound);
+    interpreterRegisterOpcode(0x8281, op_stop_sound);
+    interpreterRegisterOpcode(0x8282, op_set_sound_volume);
+    interpreterRegisterOpcode(0x8283, op_play_music);
+    interpreterRegisterOpcode(0x8284, op_stop_music);
+    interpreterRegisterOpcode(0x8285, op_set_music_volume);
 }
 
 void sfallOpcodesExit()
