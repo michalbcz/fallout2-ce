@@ -38,12 +38,15 @@ typedef struct DirectoryFileFindData {
     DIR* dir;
     struct dirent* entry;
     char pattern[COMPAT_MAX_FNAME];
+    char basePath[COMPAT_MAX_PATH];
 #endif
 } DirectoryFileFindData;
 
 bool fileFindFirst(const char* path, DirectoryFileFindData* findData);
 bool fileFindNext(DirectoryFileFindData* findData);
 bool findFindClose(DirectoryFileFindData* findData);
+
+#include <sys/stat.h>
 
 static inline bool fileFindIsDirectory(DirectoryFileFindData* findData)
 {
@@ -52,7 +55,20 @@ static inline bool fileFindIsDirectory(DirectoryFileFindData* findData)
 #elif defined(__WATCOMC__)
     return (findData->entry->d_attr & _A_SUBDIR) != 0;
 #else
-    return findData->entry->d_type == DT_DIR;
+#if defined(DT_DIR) && !defined(__OpenBSD__) && !defined(__NetBSD__) && !defined(__FreeBSD__)
+    if (findData->entry->d_type != DT_UNKNOWN) {
+        return findData->entry->d_type == DT_DIR;
+    }
+#endif
+    // Fallback to stat
+    char fullPath[COMPAT_MAX_PATH];
+    compat_makepath(fullPath, nullptr, findData->basePath, findData->entry->d_name, nullptr);
+
+    struct stat st;
+    if (stat(fullPath, &st) == 0) {
+        return S_ISDIR(st.st_mode);
+    }
+    return false;
 #endif
 }
 
