@@ -1,5 +1,9 @@
 #include "loadsave.h"
 
+#ifdef EMSCRIPTEN
+#include <emscripten.h>
+#endif
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -1685,6 +1689,16 @@ static int lsgPerformSaveGame()
     }
 
     backgroundSoundResume();
+
+#ifdef EMSCRIPTEN
+    EM_ASM(
+        FS.syncfs(false, function (err) {
+            if (err) {
+                console.error("Failed to sync FS after save", err);
+            }
+        });
+    );
+#endif
 
     return 0;
 }
