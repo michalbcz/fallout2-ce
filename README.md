@@ -82,6 +82,32 @@ $ mv app /Applications/Fallout2
 
 - Use Finder (macOS Catalina and later) or iTunes (Windows and macOS Mojave or earlier) to copy `master.dat`, `critter.dat`, `patch000.dat`, and `data` folder to "Fallout 2" app ([how-to](https://support.apple.com/HT210598)). Watch for file names - keep (or make) them lowercased (see [Configuration](#configuration)).
 
+
+### WebAssembly (Browser)
+
+> **NOTE**: The WebAssembly version allows you to play Fallout 2 directly in your web browser.
+Since the game assets are large, they must be supplied manually via drag-and-drop on first load.
+Progress is saved automatically to your browser's IndexedDB.
+
+**Building:**
+To build the WebAssembly port, you need to install [Emscripten](https://emscripten.org/).
+```console
+$ emcmake cmake -B build-wasm -S . -DEMSCRIPTEN=1
+$ cmake --build build-wasm -j$(nproc)
+```
+
+**Testing:**
+You cannot run the `.html` file directly from your file system (due to CORS and file restrictions). You must host it on a local server.
+Python 3 provides an easy way to spin up a local web server:
+```console
+$ cd build-wasm
+$ python3 -m http.server 8080
+```
+Open `http://localhost:8080/fallout2-ce.html` in your browser. Drag and drop your Fallout 2 installation folder when prompted.
+
+**Publishing:**
+To publish your WebAssembly build, upload the `build-wasm/fallout2-ce.html`, `build-wasm/fallout2-ce.js`, and `build-wasm/fallout2-ce.wasm` files to any static web host (like GitHub Pages, Netlify, or Vercel). Users will need to provide their own game assets.
+
 ## Configuration
 
 The main configuration file is `fallout2.cfg`. There are several important settings you might need to adjust for your installation. Depending on your Fallout distribution main game assets `master.dat`, `critter.dat`, `patch000.dat`, and `data` folder might be either all lowercased, or all uppercased. You can either update `master_dat`, `critter_dat`, `master_patches` and `critter_patches` settings to match your file names, or rename files to match entries in your `fallout2.cfg`.
