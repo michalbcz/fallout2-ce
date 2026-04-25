@@ -377,19 +377,26 @@ target_compile_definitions(quickjs PRIVATE
 target_include_directories(quickjs PUBLIC "third_party/quickjs")
 target_link_libraries(${EXECUTABLE_NAME} quickjs)
 
-if(FALLOUT_VENDORED)
-    add_subdirectory("third_party/zlib")
-    add_subdirectory("third_party/sdl2")
+if(EMSCRIPTEN)
+    target_link_options(${EXECUTABLE_NAME} PRIVATE -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -lidbfs.js -sUSE_SDL=2 -sUSE_ZLIB=1)
+    target_compile_options(${EXECUTABLE_NAME} PRIVATE -sUSE_SDL=2 -sUSE_ZLIB=1)
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES SUFFIX ".html")
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES LINK_FLAGS "--pre-js ${CMAKE_SOURCE_DIR}/os/emscripten/pre.js")
 else()
-    find_package(ZLIB)
-    find_package(SDL2)
+    if(FALLOUT_VENDORED)
+        add_subdirectory("third_party/zlib")
+        add_subdirectory("third_party/sdl2")
+    else()
+        find_package(ZLIB)
+        find_package(SDL2)
+    endif()
+
+    target_link_libraries(${EXECUTABLE_NAME} ${ZLIB_LIBRARIES})
+    target_include_directories(${EXECUTABLE_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
+
+    target_link_libraries(${EXECUTABLE_NAME} ${SDL2_LIBRARIES})
+    target_include_directories(${EXECUTABLE_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
-
-target_link_libraries(${EXECUTABLE_NAME} ${ZLIB_LIBRARIES})
-target_include_directories(${EXECUTABLE_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
-
-target_link_libraries(${EXECUTABLE_NAME} ${SDL2_LIBRARIES})
-target_include_directories(${EXECUTABLE_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
 
 if(APPLE)
     if(IOS)
