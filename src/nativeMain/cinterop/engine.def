@@ -1,0 +1,2 @@
+headers = kotlin_shim.h
+compilerOpts = -I../../../src -I../../../third_party/sdl2/include

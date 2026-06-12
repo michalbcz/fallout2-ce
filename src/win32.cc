@@ -25,7 +25,7 @@ bool gProgramIsActive = false;
 HANDLE GNW95_mutex = nullptr;
 #endif
 
-int main(int argc, char* argv[])
+int _disabled_main(int argc, char* argv[])
 {
     int rc;
 
@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
 
 } // namespace fallout
 
-int main(int argc, char* argv[])
+int _disabled_main(int argc, char* argv[])
 {
-    return fallout::main(argc, argv);
+    return fallout::falloutMain(argc, argv);
 }
