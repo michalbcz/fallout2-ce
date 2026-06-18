@@ -25,7 +25,7 @@ option(FALLOUT_VENDORED "Use vendored third-party libraries" ON)
 if(ANDROID)
     add_library(${EXECUTABLE_NAME} SHARED)
 else()
-    add_executable(${EXECUTABLE_NAME} WIN32 MACOSX_BUNDLE)
+    add_library(${EXECUTABLE_NAME} STATIC)
 endif()
 
 target_sources(${EXECUTABLE_NAME} PUBLIC
@@ -247,6 +247,10 @@ target_sources(${EXECUTABLE_NAME} PUBLIC
     "src/worldmap.cc"
     "src/worldmap.h"
     "src/xfile.cc"
+    "src/kotlin_shim.cc"
+    "src/kotlin_shim.h"
+    "src/kotlin_shim.cc"
+    "src/kotlin_shim.h"
     "src/xfile.h"
 )
 
